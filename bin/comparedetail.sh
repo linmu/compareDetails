@@ -143,6 +143,8 @@ SQL_DETAILS_NEW="select product_id,sum(case when detail_type = 1 then 1 else 0 e
 
 
 ############################# select new dealids list ##############################
+printMsg "select dealids from contract_queue"
+loginfo "select dealids from contract_queue"
 execMySql2File ${AUTOPAY_OLD} "select id,deal_id from contract_queue where sys_type = 2 order by deal_id" ${QUEUEID_DEALID_FILE} "appendFalse"
     
 if [[ ! -e ${QUEUEID_DEALID_FILE} ]];then
@@ -155,12 +157,22 @@ awk -F' ' '{print $2}' ${QUEUEID_DEALID_FILE} > $DEALID_FILE
 ############################## select new dealids list end ##############################
  
 ############################## select today's dealids from new and old detail table ##############################
+printMsg "select today's dealids from old detail table..."
+loginfo "select today's dealids from old detail table"
 getRecord2File "${DEALID_FILE}" "${OLD_TODAY_DEALID_FILE}" ${GROUP_SIZE} "${AUTOPAY_OLD}" "${SQL_DEALIDS_OLD}" "${IDS_INDEX}"
+
+printMsg "select today's queueids from new detail table..."
+loginfo "select today's queueids from new detail table..."
 getRecord2File "${QUEUEID_FILE}" "${NEW_TODAY_QUEUEID_FILE}" ${GROUP_SIZE} "${DETAIL}" "${SQL_QUEUEIDS_NEW}" "${IDS_INDEX}"
 ############################### select today's dealids from new and old detail table end  ##############################
 
 ############################### select today's detail records from new and old detail table ##############################
+printMsg "select today's detail records from old detail table..."
+loginfo "select today's detail records from old detail table"
 getRecord2File "${OLD_TODAY_DEALID_FILE}" "${OLD_DETAIL_RECORD_FILE}" ${GROUP_SIZE} "${AUTOPAY_OLD}" "${SQL_DETAILS_OLD}" "${IDS_INDEX}" 
+
+printMsg "select today's detail records from new detail table..."
+loginfo "select today's detail records from new detail table"
 getRecord2File "${NEW_TODAY_QUEUEID_FILE}" "${NEW_DETAIL_RECORD_FILE}" ${GROUP_SIZE} "${DETAIL}" "${SQL_DETAILS_NEW}" "${IDS_INDEX}"
 ############################### select today's dealids records from new and old detail table end  ##############################
 
@@ -176,6 +188,7 @@ old_file_lines=`wc -l $OLD_DETAIL_RECORD | awk -F' ' '{print $1}'`
 new_file_lines=`wc -l $NEW_DETAIL_RECORD | awk -F' ' '{print $1}'`
 line_count_new=1
 printMsg "compare detail records begin"
+loginfo "compare detail records begin"
 for((line_count_old=1;$line_count_old<=$old_file_lines;))
 do
     old_detail_array=(`sed -n ${line_count_old}p $OLD_DETAIL_RECORD`)
@@ -250,7 +263,8 @@ if [[ $line_count_old -le $old_file_lines ]];then
     done
 fi
 
-printMsg "compare detail record end!"
+printMsg "compare detail record end"
+loginfo "compare detail record end"
 ############################## compare detail record end ##############################
 
 
