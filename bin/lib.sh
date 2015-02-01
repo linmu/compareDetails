@@ -1,11 +1,44 @@
 #!/bin/bash
 
+############################
+##! @Author:Mu Lin
+##! @Date:2014-02-01
+##! @TODO:public functions
+############################
+FUNC_SUCC=0
+FUNC_ERROR=1
+
+function getTime()
+{
+    echo "$(date '+%Y-%m-%d %H:%M:%S')"
+}
+
+function printMsg()
+{
+    echo "$1"
+}
+
+function loginfo()
+{
+    echo "`getTime` [`caller 0 | awk -F' ' '{print $1,$2}'`] $1" >> $LOG_FILE
+}
+
+function failExit()
+{
+    loginfo "Error: $1, exited, please check problem"
+    exit $FUNC_ERROR
+}
+
+#extract record from DB to a global array variable
+#input: dbname yoursql
 function execMySql2Array()
 {
-    if [ $# -ne 2 ];then
-        echo "Please input two paras: DB_NAME YOUR_SQL" 
-        exit
+    if [[ $# -ne 2 ]];then
+        loginfo "need params"
+        failExit "execMySql2Array invalid params [$*]"
     fi
+
+    local ret
     case $1 in
         $AUTOPAY_OLD)
             ret_array=(`mysql -h$DB_AUTOPAY_HOST -P$DB_AUTOPAY_PORT -u$DB_AUTOPAY_USER -p$DB_AUTOPAY_PWD $1 -N -e "$2"`)
@@ -17,17 +50,31 @@ function execMySql2Array()
             ret_array=(`mysql -h$DB_DETAIL_HOST -P$DB_DETAIL_PORT -u$DB_DETAIL_USER -p$DB_DETAIL_PWD $1 -N -e "$2"`)
             ;;
         *)
+	    loginfo "cannot find database $1, please check"
+	    failExit "wrong database name $1"
             ;;
     esac
+
+    ret=$?
+    if [[ $ret -eq $FUNC_SUCC ]];then
+        loginfo "apply sql $2 on database $1 successfully"
+	return $ret
+    else
+        failExit "apply sql $2 on database $1 failed"
+    fi
 }
 
+#extract record from DB to a file
+#input: dbname yoursql outputfile appendflag
 function execMySql2File()
 {
-    if [ $# -ne 4 ];then
-        echo "Please input four paras: DB_NAME YOUR_SQL OUTPUT_FILE_NAME IFAPPEND"
-        exit
+    if [[ $# -ne 4 ]];then
+        loginfo "need params"
+        failExit "execMySql2File invalid params [$*]"
     fi
-    if [ "X$4" = "XappendTrue" ];then
+
+    local ret
+    if [[ "$4" = appendTrue ]];then
         case $1 in
             $AUTOPAY_OLD)
                 mysql -h$DB_AUTOPAY_HOST -P$DB_AUTOPAY_PORT -u$DB_AUTOPAY_USER -p$DB_AUTOPAY_PWD $1 -N -e "$2" >> $3
@@ -39,9 +86,11 @@ function execMySql2File()
                 mysql -h$DB_DETAIL_HOST -P$DB_DETAIL_PORT -u$DB_DETAIL_USER -p$DB_DETAIL_PWD $1 -N -e "$2" >> $3
                 ;;
             *)
+		loginfo "cannot find database $1, please check"
+		failExit "wrong database name $1"
                 ;;
         esac
-    elif [ "X$4" = "XappendFalse" ];then
+    elif [[ "$4" = appendFalse ]];then
         case $1 in
             $AUTOPAY_OLD)
                 mysql -h$DB_AUTOPAY_HOST -P$DB_AUTOPAY_PORT -u$DB_AUTOPAY_USER -p$DB_AUTOPAY_PWD $1 -N -e "$2" > $3
@@ -53,49 +102,66 @@ function execMySql2File()
                 mysql -h$DB_DETAIL_HOST -P$DB_DETAIL_PORT -u$DB_DETAIL_USER -p$DB_DETAIL_PWD $1 -N -e "$2" > $3
                 ;;
             *)
+		loginfo "cannot find databases $1, please check"
+		failExit "wrong database name $1"
                 ;;
         esac
     else
-        echo "wrong redirection flag"
-        exit
+        loginfo "do not support append flag $4, please check"
+        failExit "wrong append flag $4"
+    fi
+
+    ret=$?
+    if [[ $ret -eq $FUNC_SUCC ]];then
+        loginfo "apply sql $2 on database $1 successfully"
+        return $ret
+    else
+        failExit "apply sql $2 on database $1 failed"
     fi
 }
 
+#batch get record from database to a file
+#input: inputfile outputfile groupsize dbname yoursql replaceindex
 function getRecord2File()
 {
-    if [ $# -ne 6 ];then
-        echo "Please input three paras: INPUT_FILE_NAME OUTPUT_FILE_NAME GROUP_SIZE DB_NAME YOUR_SQL REPLACE_INDEX"
-        exit
+    if [[ $# -ne 6 ]];then
+        loginfo "need params"
+        failExit "getRecord2File invalid params [$*]"
     fi
     
-    local id_file=$1
-    local record_file=$2
-    local id_num=`wc -l $id_file | awk -F' ' '{print $1}'`
+    local input_file=$1
+    local output_file=$2
+    local record_num=`wc -l ${input_file} | awk -F' ' '{print $1}'`
     local group_size=$3
-    local sub_size=$((($id_num+$group_size-1)/$group_size))
+    local sub_size=$(((${record_num}+${group_size}-1)/${group_size}))
 
     local begin=1
-    local end=$(($begin+$group_size-1))
+    local end=$((${begin}+${group_size}-1))
     local db_name=$4
     local sql=$5
     local index=$6
-    for((i=1;i<=$sub_size;i++))
+    for((i=1;i<=${sub_size};i++))
     do
-        sub_list=`sed -n "${begin},${end}p" $id_file | tr -t '\n' ',' | sed -e 's/,$//g'`
-        sql=${sql//$index/$sub_list}
-        execMySql2File "$db_name" "$sql" "$record_file" "appendTrue"
-	    sleep 0.1
-        begin=$(($begin+$group_size))
-        end=$(($end+$group_size))
-	index=$sub_list
+        sub_list=`sed -n "${begin},${end}p" $input_file | tr -t '\n' ',' | sed -e 's/,$//g'`
+        sql=${sql//$index/${sub_list}}
+        execMySql2File "$db_name" "$sql" "$output_file" "appendTrue"
+	sleep 0.1
+        begin=$(($begin+${group_size}))
+        end=$(($end+${group_size}))
+	index=${sub_list}
     done  
 }
 
-
+#input: inputfile outputfile
 function formatFile()
 {
-   sed -e 's/ /\n/g' $1 > $2
-   rm -rf $1   
+    if [[  $# -ne 2 ]];then
+        loginfo "need params"
+        failExit "formatFile invalid params [$*]"
+    fi
+
+    sed -e 's/ /\n/g' $1 > $2
+    rm -rf $1   
 }
 
 function sendEmail()
