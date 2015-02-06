@@ -7,15 +7,21 @@
 ############################
 FUNC_SUCC=0
 FUNC_ERROR=1
+LOOP_TEST_COUNT=3
 
 function getTime()
 {
     echo "$(date '+%Y-%m-%d %H:%M:%S')"
 }
 
+#input: msg or msg outputfile
 function printMsg()
 {
-    echo "$1"
+	if [[ $# -eq 1 ]];then
+        echo "$1"
+	elif [[ $# -eq 2 ]];then
+	    echo "$1" >> "$2"
+	fi
 }
 
 function loginfo()
@@ -28,6 +34,7 @@ function failExit()
     loginfo "Error: $1, exited, please check problem"
     exit $FUNC_ERROR
 }
+
 
 #extract record from DB to a global array variable
 #input: dbname yoursql
@@ -58,10 +65,10 @@ function execMySql2Array()
     ret=$?
     if [[ $ret -eq $FUNC_SUCC ]];then
         loginfo "apply sql $2 on database $1 successfully"
-	return $ret
     else
-        failExit "apply sql $2 on database $1 failed"
+        loginfo "apply sql $2 on database $1 failed"
     fi
+	return $ret
 }
 
 #extract record from DB to a file
@@ -70,6 +77,7 @@ function execMySql2File()
 {
     if [[ $# -ne 4 ]];then
         loginfo "need params"
+		loginfo "params number is $#"
         failExit "execMySql2File invalid params [$*]"
     fi
 
@@ -114,10 +122,11 @@ function execMySql2File()
     ret=$?
     if [[ $ret -eq $FUNC_SUCC ]];then
         loginfo "apply sql $2 on database $1 successfully"
-        return $ret
     else
-        failExit "apply sql $2 on database $1 failed"
+        loginfo "apply sql $2 on database $1 failed"
     fi
+	
+	return $ret
 }
 
 #batch get record from database to a file
@@ -144,11 +153,25 @@ function getRecord2File()
     do
         sub_list=`sed -n "${begin},${end}p" $input_file | tr -t '\n' ',' | sed -e 's/,$//g'`
         sql=${sql//$index/${sub_list}}
-        execMySql2File "$db_name" "$sql" "$output_file" "appendTrue"
-	sleep 0.1
+	    local counter=1
+		for((counter=1;counter<=${LOOP_TEST_COUNT};counter++))
+		do
+            loginfo "start exec execMySql2File $counter times"
+		    execMySql2File "${db_name}" "${sql}" "${output_file}" "appendTrue"
+			if [[ $? -eq $FUNC_SUCC ]];then
+                break
+			fi
+			if [[ $counter -lt ${LOOP_TEST_COUNT} ]];then
+		        loginfo "loop invocation, sleep 2s"
+			    sleep 2
+			else
+				failExit "exec execMySql2File failed"
+			fi
+		done
+		sleep 0.1
         begin=$(($begin+${group_size}))
         end=$(($end+${group_size}))
-	index=${sub_list}
+	    index=${sub_list}
     done  
 }
 

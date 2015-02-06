@@ -75,8 +75,7 @@ OLD_DETAIL_RECORD_FILE="${DATA_DIR}/${OLD_DETAIL_RECORD_FILE_NAME}_${TODAY}"
 NEW_DETAIL_RECORD_FILE="${DATA_DIR}/${NEW_DETAIL_RECORD_FILE_NAME}_${TODAY}"
 DIFF_DIR="${DEPLOY_DIR}/${DIFF_PATH}"
 DIFF_FILE="${DIFF_DIR}/${DIFF_FILE_NAME}_${TODAY}"
-
-GROUP_SIZE=100
+DATA_PROCESSOR_FILE="${BIN_DIR}/${DATA_PROCESSOR_FILE_NAME}"
 
 if [[ ! -d ${LOG_DIR} ]];then
     mkdir -p ${LOG_DIR}
@@ -132,7 +131,7 @@ NEW_QUERY_DAY=$(date -d "${OLD_QUERY_DAY}" "+%Y-%m-%d")
 
 IDS_INDEX="<dealids>"
 
-SQL_DEALIDS_OLD="select deal_id from stat_day_option where date=${OLD_QUERY_DAY} and deal_id in (${IDS_INDEX}) order by deal_id"
+SQL_DEALIDS_OLD="select s.deal_id from stat_day_option s,contract_queue c where s.date=${OLD_QUERY_DAY} and s.deal_id = c.deal_id and c.sys_type = 2 order by deal_id"
 
 SQL_QUEUEIDS_NEW="select distinct queue_id from settlement_detail where opt_time >= '${NEW_QUERY_DAY} 00:00:00' and opt_time <= '${NEW_QUERY_DAY} 23:59:59' and queue_id in (${IDS_INDEX})"
 
@@ -159,7 +158,7 @@ awk -F' ' '{print $2}' ${QUEUEID_DEALID_FILE} > $DEALID_FILE
 ############################## select today's dealids from new and old detail table ##############################
 printMsg "select today's dealids from old detail table..."
 loginfo "select today's dealids from old detail table"
-getRecord2File "${DEALID_FILE}" "${OLD_TODAY_DEALID_FILE}" ${GROUP_SIZE} "${AUTOPAY_OLD}" "${SQL_DEALIDS_OLD}" "${IDS_INDEX}"
+execMySql2File "${AUTOPAY_OLD}" "${SQL_DEALIDS_OLD}" "${OLD_TODAY_DEALID_FILE}" "appendFalse"
 
 printMsg "select today's queueids from new detail table..."
 loginfo "select today's queueids from new detail table..."
@@ -184,84 +183,20 @@ if [[ ! -e ${DIFF_FILE} ]];then
 fi
 
 ############################### compare detail record begin ##############################
-old_file_lines=`wc -l $OLD_DETAIL_RECORD | awk -F' ' '{print $1}'`
-new_file_lines=`wc -l $NEW_DETAIL_RECORD | awk -F' ' '{print $1}'`
-line_count_new=1
 printMsg "compare detail records begin"
 loginfo "compare detail records begin"
-for((line_count_old=1;$line_count_old<=$old_file_lines;))
-do
-    old_detail_array=(`sed -n ${line_count_old}p $OLD_DETAIL_RECORD`)
-    new_detail_array=(`sed -n ${line_count_new}p $NEW_DETAIL_RECORD`)
-    if [[ ${#new_detail_array[*]} -eq 0 ]];then
-        break
-    fi
-    loginfo "processing old line no. ${line_count_old} new line no. ${line_count_new} old_dealid:${old_detail_array[0]} new_dealid:${new_detail_array[0]} ..."
-        
-    loginfo "new dealid:${new_detail_array[0]} old dealid:${old_detail_array[0]}"
-    if [[ ${new_detail_array[0]} -ne ${old_detail_array[0]} ]];then
-        if [[ ${new_detail_array[0]} -gt ${old_detail_array[0]} ]];then
-            printMsg "old dealid:${old_detail_array[0]} is not in new dealids list" >> ${DIFF_FILE}
-            line_count_old=$(($line_count_old+1))
-	elif [[ ${new_detail_array[0]} -lt ${old_detail_array[0]} ]];then
-            printMsg "new dealid:${new_detail_array[0]} is not in old dealids list" >> ${DIFF_FILE}
-            line_count_new=$(($line_count_new+1))
-        fi
-        continue
-    fi
-   
-    loginfo "new buy_count:${new_detail_array[1]} old buy_count:${old_detail_array[1]}"
-    if [[ ${new_detail_array[1]} -ne ${old_detail_array[1]} ]];then
-        printMsg "buy count mismatch|new-${new_detail_array[1]} old-${old_detail_array[1]}|dealId:${new_detail_array[0]}" >> ${DIFF_FILE}
-	line_count_old=$(($line_count_old+1))
-        line_count_new=$(($line_count_new+1))
-        continue
-    fi
-    
-    loginfo "new use_count:${new_detail_array[2]} old use_count:${old_detail_array[2]}"
-    if [[ ${new_detail_array[2]} -ne ${old_detail_array[2]} ]];then
-        printMsg "use count mismatch|new-${new_detail_array[2]} old-${old_detail_array[2]}|dealId:${new_detail_array[0]}" >> ${DIFF_FILE}
-        line_count_old=$(($line_count_old+1))
-        line_count_new=$(($line_count_new+1))
-        continue
-    fi
-    
-    loginfo "new use_cancel_count:${new_detail_array[3]} old buy_count:${old_detail_array[3]}"
-    if [[ ${new_detail_array[3]} -ne ${old_detail_array[3]} ]];then
-        printMsg "use cancel count mismatch|new-${new_detail_array[3]} old-${old_detail_array[3]}|dealId:${new_detail_array[0]}" >> ${DIFF_FILE}
-        line_count_old=$(($line_count_old+1))
-        line_count_new=$(($line_count_new+1))
-        continue
-    fi
-    
-    loginfo "new refund_count:${new_detail_array[4]} old refund_count:${old_detail_array[4]}"
-    if [[ ${new_detail_array[4]} -ne ${old_detail_array[4]} ]];then
-        printMsg "refund count mismatch|new-${new_detail_array[4]} old-${old_detail_array[4]}|dealId:${new_detail_array[0]}" >> ${DIFF_FILE}
-        line_count_old=$(($line_count_old+1))
-        line_count_new=$(($line_count_new+1))
-        continue
-    fi
 
-    line_count_old=$(($line_count_old+1))
-    line_count_new=$(($line_count_new+1))
-
-done
-    
-if [[ $line_count_new -le $new_file_lines ]];then
-    for((i=$line_count_new;i<=$new_file_lines;i++))
-    do
-        new_detail_array=(`sed -n ${i}p $NEW_DETAIL_RECORD`)
-        printMsg "new dealid:${new_detail_array[0]} is not in old dealids list" >> ${DIFF_FILE}
-    done
+if [[ ! -e ${OLD_DETAIL_RECORD_FILE} ]];then
+    failExit "${OLD_DETAIL_RECORD_FILE} doesn't exist"
 fi
 
-if [[ $line_count_old -le $old_file_lines ]];then
-    for((i=$line_count_old;i<=$old_file_lines;i++))
-    do
-        old_detail_array=(`sed -n ${i}p $OLD_DETAIL_RECORD`)
-        printMsg "old dealid:${old_detail_array[0]} is not in new dealids list" >> ${DIFF_FILE}
-    done
+if [[ ! -e ${NEW_DETAIL_RECORD_FILE} ]];then
+    failExit "${NEW_DETAIL_RECORD_FILE} doesn't exist"
 fi
+
+awk -f "${DATA_PROCESSOR_FILE}" "${OLD_DETAIL_RECORD_FILE}" "${NEW_DETAIL_RECORD_FILE}" > "${DIFF_FILE}"
+
+sort -t"|" -k1n "${DIFF_FILE}" -o "${DIFF_FILE}"
 
 printMsg "compare detail record end"
 loginfo "compare detail record end"
