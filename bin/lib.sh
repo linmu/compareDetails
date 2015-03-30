@@ -17,11 +17,11 @@ function getTime()
 #input: msg or msg outputfile
 function printMsg()
 {
-	if [[ $# -eq 1 ]];then
+    if [[ $# -eq 1 ]];then
         echo "$1"
-	elif [[ $# -eq 2 ]];then
-	    echo "$1" >> "$2"
-	fi
+    elif [[ $# -eq 2 ]];then
+        echo "$1" >> "$2"
+    fi
 }
 
 function loginfo()
@@ -57,8 +57,8 @@ function execMySql2Array()
             ret_array=(`mysql -h$DB_DETAIL_HOST -P$DB_DETAIL_PORT -u$DB_DETAIL_USER -p$DB_DETAIL_PWD $1 -N -e "$2"`)
             ;;
         *)
-	    loginfo "cannot find database $1, please check"
-	    failExit "wrong database name $1"
+    loginfo "cannot find database $1, please check"
+    failExit "wrong database name $1"
             ;;
     esac
 
@@ -68,7 +68,7 @@ function execMySql2Array()
     else
         loginfo "apply sql $2 on database $1 failed"
     fi
-	return $ret
+    return $ret
 }
 
 #extract record from DB to a file
@@ -77,7 +77,7 @@ function execMySql2File()
 {
     if [[ $# -ne 4 ]];then
         loginfo "need params"
-		loginfo "params number is $#"
+        loginfo "params number is $#"
         failExit "execMySql2File invalid params [$*]"
     fi
 
@@ -94,8 +94,8 @@ function execMySql2File()
                 mysql -h$DB_DETAIL_HOST -P$DB_DETAIL_PORT -u$DB_DETAIL_USER -p$DB_DETAIL_PWD $1 -N -e "$2" >> $3
                 ;;
             *)
-		loginfo "cannot find database $1, please check"
-		failExit "wrong database name $1"
+                loginfo "cannot find database $1, please check"
+                failExit "wrong database name $1"
                 ;;
         esac
     elif [[ "$4" = appendFalse ]];then
@@ -110,8 +110,8 @@ function execMySql2File()
                 mysql -h$DB_DETAIL_HOST -P$DB_DETAIL_PORT -u$DB_DETAIL_USER -p$DB_DETAIL_PWD $1 -N -e "$2" > $3
                 ;;
             *)
-		loginfo "cannot find databases $1, please check"
-		failExit "wrong database name $1"
+                loginfo "cannot find databases $1, please check"
+                failExit "wrong database name $1"
                 ;;
         esac
     else
@@ -125,8 +125,8 @@ function execMySql2File()
     else
         loginfo "apply sql $2 on database $1 failed"
     fi
-	
-	return $ret
+
+    return $ret
 }
 
 #batch get record from database to a file
@@ -153,26 +153,26 @@ function getRecord2File()
     do
         sub_list=`sed -n "${begin},${end}p" $input_file | tr -t '\n' ',' | sed -e 's/,$//g'`
         sql=${sql//$index/${sub_list}}
-	    local counter=1
-		for((counter=1;counter<=${LOOP_TEST_COUNT};counter++))
-		do
+        local counter=1
+        for((counter=1;counter<=${LOOP_TEST_COUNT};counter++))
+        do
             loginfo "start exec execMySql2File $counter times"
-		    execMySql2File "${db_name}" "${sql}" "${output_file}" "appendTrue"
-			if [[ $? -eq $FUNC_SUCC ]];then
+            execMySql2File "${db_name}" "${sql}" "${output_file}" "appendTrue"
+            if [[ $? -eq $FUNC_SUCC ]];then
                 break
-			fi
-			if [[ $counter -lt ${LOOP_TEST_COUNT} ]];then
-		        loginfo "loop invocation, sleep 2s"
-			    sleep 2
-			else
-				failExit "exec execMySql2File failed"
-			fi
-		done
-		sleep 0.1
+            fi
+            if [[ $counter -lt ${LOOP_TEST_COUNT} ]];then
+                loginfo "loop invocation, sleep 2s"
+                sleep 2
+            else
+                failExit "exec execMySql2File failed"
+            fi
+        done
+        sleep 0.1
         begin=$(($begin+${group_size}))
         end=$(($end+${group_size}))
-	    index=${sub_list}
-    done  
+        index=${sub_list}
+    done
 }
 
 #input: inputfile outputfile

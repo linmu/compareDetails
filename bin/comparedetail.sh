@@ -41,21 +41,21 @@ fi
 while getopts :c:d:hv opt
 do
     case $opt in
-        c)   CONF_FILE_NAME=$OPTARG
-	     ;;
-	d)   TODAY=$OPTARG
-	     ;;
-	v)   version
-	     exit 0
-	     ;;
-	h)   usage_and_exit 0
-	     ;;
-        ':') echo "$PROGRAM -$OPTARG requires an argument" >&2
-	     usage_and_exit 1
-	     ;;
-        '?') echo "$PROGRAM: invalid option $OPTARG" >&2
-	     usage_and_exit 1
-	     ;;
+    c) CONF_FILE_NAME=$OPTARG
+       ;;
+    d) TODAY=$OPTARG
+       ;;
+    v) version
+       exit 0
+       ;;
+    h) usage_and_exit 0
+       ;;
+    ':') echo "$PROGRAM -$OPTARG requires an argument" >&2
+       usage_and_exit 1
+       ;;
+    '?') echo "$PROGRAM: invalid option $OPTARG" >&2
+       usage_and_exit 1
+       ;;
     esac
 done
 shift $(($OPTIND-1))
@@ -103,7 +103,7 @@ if [[ -f $DEALID_FILE ]];then
 fi
 
 if [[ -f ${OLD_TODAY_DEALID_FILE} ]];then
-    rm -rf ${OLD_TODAY_DEALID}
+    rm -rf ${OLD_TODAY_DEALID_FILE}
 fi
 
 if [[ -f ${NEW_TODAY_QUEUEID_FILE} ]];then
@@ -204,5 +204,5 @@ loginfo "compare detail record end"
 
 
 sendEmail ${DIFF_FILE} "Compare Details_${TODAY}"
-	
+
 exit $FUNC_SUCC
